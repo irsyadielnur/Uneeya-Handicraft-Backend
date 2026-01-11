@@ -173,6 +173,7 @@ exports.getStatusPayment = async (req, res) => {
 exports.handleMidtransNotification = async (req, res) => {
   const statusResponse = req.body;
   const orderId = statusResponse.order_id;
+
   const transactionStatus = statusResponse.transaction_status;
   const fraudStatus = statusResponse.fraud_status;
   let newStatus;
