@@ -35,13 +35,7 @@ db.Role.hasMany(db.User, { foreignKey: 'role_id' });
 db.User.belongsTo(db.Role, { foreignKey: 'role_id' });
 
 // Relasi OTP
-db.User.hasMany(db.EmailOtp, {
-  foreignKey: {
-    nae: 'user_id',
-    allowNull: false,
-  },
-  onDelete: 'CASCADE',
-});
+db.User.hasMany(db.EmailOtp, { foreignKey: 'user_id' });
 db.EmailOtp.belongsTo(db.User, { foreignKey: 'user_id' });
 
 // Relasi Many-to-Many: Role - Permission
