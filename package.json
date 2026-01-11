@@ -1,0 +1,39 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend Uneeya Handicraft",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "Irsyadi Hanif Elnur",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "google-auth-library": "^10.5.0",
+    "jsonwebtoken": "^9.0.3",
+    "midtrans-client": "^1.4.3",
+    "multer": "^2.0.2",
+    "mysql2": "^3.15.3",
+    "natural": "^8.1.0",
+    "nodemailer": "^7.0.11",
+    "qs": "^6.14.0",
+    "sequelize": "^6.37.7",
+    "socket.io": "^4.8.3",
+    "stopword": "^3.1.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11",
+    "prettier": "^3.7.4",
+    "sequelize-cli": "^6.6.3"
+  }
+}
