@@ -169,3 +169,23 @@ exports.getStatusPayment = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+exports.handleMidtransNotification = async (req, res) => {
+  const statusResponse = req.body;
+  const orderId = statusResponse.order_id;
+  const transactionStatus = statusResponse.transaction_status;
+  const fraudStatus = statusResponse.fraud_status;
+  let newStatus;
+  if (transactionStatus == 'capture' || transactionStatus == 'settlement') {
+    newStatus = 'paid';
+  } else if (transactionStatus == 'cancel' || transactionStatus == 'expire') {
+    newStatus = 'cancelled';
+  } else if (transactionStatus == 'pending') {
+    newStatus = 'pending';
+  }
+
+  if (newStatus) {
+    await Order.update({ status: newStatus }, { where: { order_id: orderId } });
+  }
+  res.status(200).send('OK');
+};
