@@ -171,22 +171,46 @@ exports.getStatusPayment = async (req, res) => {
 };
 
 exports.handleMidtransNotification = async (req, res) => {
-  const statusResponse = req.body;
-  const orderId = statusResponse.order_id;
+  try {
+    const statusResponse = req.body;
+    const midtransOrderId = statusResponse.order_id;
+    const orderIdParts = midtransOrderId.split('-');
+    const realOrderId = orderIdParts[1];
 
-  const transactionStatus = statusResponse.transaction_status;
-  const fraudStatus = statusResponse.fraud_status;
-  let newStatus;
-  if (transactionStatus == 'capture' || transactionStatus == 'settlement') {
-    newStatus = 'paid';
-  } else if (transactionStatus == 'cancel' || transactionStatus == 'expire') {
-    newStatus = 'cancelled';
-  } else if (transactionStatus == 'pending') {
-    newStatus = 'pending';
-  }
+    const transactionStatus = statusResponse.transaction_status;
+    const fraudStatus = statusResponse.fraud_status;
 
-  if (newStatus) {
-    await Order.update({ status: newStatus }, { where: { order_id: orderId } });
+    console.log(`Notifikasi masuk untuk Order ID: ${realOrderId}, Status: ${transactionStatus}`);
+    let paymentStatus = 'pending';
+    let orderStatus = 'waiting_payment';
+
+    if (transactionStatus == 'capture') {
+      if (fraudStatus == 'challenge') {
+        paymentStatus = 'pending';
+      } else if (fraudStatus == 'accept') {
+        paymentStatus = 'paid';
+        orderStatus = 'processing';
+      }
+    } else if (transactionStatus == 'settlement') {
+      paymentStatus = 'paid';
+      orderStatus = 'processing';
+    } else if (transactionStatus == 'cancel' || transactionStatus == 'deny' || transactionStatus == 'expire') {
+      paymentStatus = 'failed';
+      orderStatus = 'cancelled';
+    } else if (transactionStatus == 'pending') {
+      paymentStatus = 'pending';
+    }
+
+    if (paymentStatus !== 'pending') {
+      await Payment.update({ status: paymentStatus }, { where: { transaction_id: midtransOrderId } });
+      await Order.update({ status: orderStatus }, { where: { order_id: realOrderId } });
+      if (paymentStatus === 'paid') {
+      }
+    }
+
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Midtrans Notification Error:', error);
+    res.status(500).send('Internal Server Error');
   }
-  res.status(200).send('OK');
 };
