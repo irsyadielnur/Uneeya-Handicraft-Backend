@@ -3,14 +3,14 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
   },
 });
 
 exports.sendOtpEmail = async (email, otp) => {
   await transporter.sendMail({
-    from: `"Uneeya Handicraft" <${process.env.EMAIL_USER}>`,
+    from: `"Uneeya Handicraft" <${process.env.MAIL_USER}>`,
     to: email,
     subject: 'Kode Verifikasi Akun',
     html: `
