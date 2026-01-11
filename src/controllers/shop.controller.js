@@ -29,7 +29,7 @@ exports.updateShopInfo = async (req, res) => {
       });
     }
 
-    const { shop_name, whatsapp_number, instagram_username, tiktok_username, province_id, province_name, city_id, city_name, full_address } = req.body;
+    const { shop_name, whatsapp_number, instagram_username, tiktok_username, province_id, province_name, city_id, city_name, full_address, email_address } = req.body;
 
     const updateData = {
       shop_name,
@@ -41,6 +41,7 @@ exports.updateShopInfo = async (req, res) => {
       city_id,
       city_name,
       full_address,
+      email_address,
     };
 
     if (req.file) {

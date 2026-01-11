@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
       logo_url: DataTypes.STRING,
 
       // Kontak & Sosmed
+      email_address: DataTypes.STRING,
       whatsapp_number: DataTypes.STRING,
       instagram_username: DataTypes.STRING,
       tiktok_username: DataTypes.STRING,
