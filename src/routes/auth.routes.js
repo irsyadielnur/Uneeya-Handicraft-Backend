@@ -7,8 +7,6 @@ const authorize = require('../middlewares/authorizePermission.middleware');
 
 router.post('/register', authController.register);
 router.post('/login', authController.login);
-router.post('/google', authController.googleLogin);
-router.post('/verify-otp', authController.verifyOtp);
 
 const requireCustomer = [auth, authorize('manage_profile')];
 

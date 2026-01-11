@@ -7,7 +7,6 @@ db.Sequelize = Sequelize;
 
 db.Role = require('./Role')(sequelize, Sequelize);
 db.User = require('./User')(sequelize, Sequelize);
-db.EmailOtp = require('./EmailOtp')(sequelize, Sequelize);
 db.Permission = require('./Permission')(sequelize, Sequelize);
 db.RolePermission = require('./RolePermission')(sequelize, Sequelize);
 db.Product = require('./Product')(sequelize, Sequelize);
@@ -33,10 +32,6 @@ db.RealtimeMessage = require('./RealtimeMessage')(sequelize, Sequelize);
 // Relasi RBAC
 db.Role.hasMany(db.User, { foreignKey: 'role_id' });
 db.User.belongsTo(db.Role, { foreignKey: 'role_id' });
-
-// Relasi OTP
-db.User.hasMany(db.EmailOtp, { foreignKey: 'user_id' });
-db.EmailOtp.belongsTo(db.User, { foreignKey: 'user_id' });
 
 // Relasi Many-to-Many: Role - Permission
 db.Role.belongsToMany(db.Permission, {
