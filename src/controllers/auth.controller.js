@@ -97,6 +97,7 @@ exports.updateProfile = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User tidak ditemukan' });
     if (username) user.username = username;
     if (phone) user.phone = phone;
+
     if (req.file) {
       user.profile_pic = req.file.path;
     }
