@@ -1,5 +1,3 @@
-// const fs = require('fs');
-// const path = require('path');
 const { Product, ProductMaterial, ProductColor, ProductImage, sequelize } = require('../models');
 const { generateProductTextFeature, deleteProductTextFeature } = require('../services/productTextFeature.service');
 const { generateTfidf } = require('../services/tfidf.service');
