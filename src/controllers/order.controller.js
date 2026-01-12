@@ -189,11 +189,6 @@ exports.getMyOrderDetail = async (req, res) => {
       ],
     });
 
-    // const hasRated = order.OrderItems.map((item) => ({
-    //   ...item.toJSON(),
-    //   can_review: order.status === 'completed',
-    // }));
-
     if (!order) {
       return res.status(404).json({ message: 'Order tidak ditemukan' });
     }
@@ -282,7 +277,18 @@ exports.getAllOrdersAdmin = async (req, res) => {
         },
         {
           model: OrderItem,
-          include: [{ model: Product, attributes: ['name', 'price', 'weight'] }],
+          include: [
+            {
+              model: Product,
+              attributes: ['name', 'price', 'weight'],
+              include: [
+                {
+                  model: ProductImage,
+                  attributes: ['image_url'],
+                },
+              ],
+            },
+          ],
         },
         {
           model: Payment,
