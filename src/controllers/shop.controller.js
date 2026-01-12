@@ -47,7 +47,6 @@ exports.updateShopInfo = async (req, res) => {
     }
 
     await shop.update(updateData);
-
     res.json({ message: 'Informasi toko berhasil diperbarui', shop });
   } catch (error) {
     console.error('Error di updateShopInfo:', error);

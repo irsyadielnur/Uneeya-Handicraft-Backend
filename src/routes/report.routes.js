@@ -3,15 +3,7 @@ const router = express.Router();
 const reportController = require('../controllers/report.controller');
 const auth = require('../middlewares/auth.middleware');
 const authorize = require('../middlewares/authorizePermission.middleware');
-
-// Setup Multer untuk Upload Bukti
-const multer = require('multer');
-const path = require('path');
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'public/uploads/reports'),
-  filename: (req, file, cb) => cb(null, `rep-${Date.now()}${path.extname(file.originalname)}`),
-});
-const upload = multer({ storage });
+const upload = require('../middlewares/reportImg.middleware');
 
 // Routes Admin
 router.get('/dashboard-stats', auth, authorize('dashboard-stats'), reportController.getDashboardStats);
