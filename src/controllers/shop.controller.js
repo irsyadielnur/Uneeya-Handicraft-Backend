@@ -1,6 +1,4 @@
 const { ShopSetting } = require('../models');
-const fs = require('fs');
-const path = require('path');
 
 // Get Shop Info
 exports.getShopInfo = async (req, res) => {
@@ -45,20 +43,9 @@ exports.updateShopInfo = async (req, res) => {
     };
 
     if (req.file) {
-      if (shop.logo_url && !shop.logo_url.startsWith('http')) {
-        try {
-          const cleanOldPath = shop.logo_url.startsWith('/') ? shop.logo_url.substring(1) : shop.logo_url;
-          const oldPath = path.join(__dirname, '../../public', cleanOldPath);
-
-          if (fs.existsSync(oldPath)) {
-            fs.unlinkSync(oldPath);
-          }
-        } catch (err) {
-          console.error('Gagal menghapus logo lama (diabaikan):', err.message);
-        }
-      }
-      updateData.logo_url = `/uploads/shop/${req.file.filename}`;
+      updateData.logo_url = req.file.path;
     }
+
     await shop.update(updateData);
 
     res.json({ message: 'Informasi toko berhasil diperbarui', shop });

@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+// const fs = require('fs');
+// const path = require('path');
 const { Product, ProductMaterial, ProductColor, ProductImage, sequelize } = require('../models');
 const { generateProductTextFeature, deleteProductTextFeature } = require('../services/productTextFeature.service');
 const { generateTfidf } = require('../services/tfidf.service');
@@ -15,21 +15,6 @@ const parseBodyData = (data) => {
     }
   }
   return data;
-};
-
-// Helper: Hapus File Fisik
-const deletePhysicalFiles = (filesArray) => {
-  filesArray.forEach((file) => {
-    const filePath = path.join(__dirname, '../../public', file.image_url);
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-        console.log(`Deleted file: ${filePath}`);
-      } catch (err) {
-        console.error(`Failed to delete file: ${filePath}`, err);
-      }
-    }
-  });
 };
 
 // Create Product
@@ -83,7 +68,7 @@ exports.createProduct = async (req, res) => {
     if (uploadedFiles.length > 0) {
       const imageData = uploadedFiles.map((file) => ({
         product_id: product.product_id,
-        image_url: `/uploads/products/${file.filename}`,
+        image_url: file.path,
       }));
       await ProductImage.bulkCreate(imageData, { transaction: t });
     }
@@ -93,7 +78,7 @@ exports.createProduct = async (req, res) => {
 
     await t.commit();
 
-    const mainImage = uploadedFiles.length > 0 ? `/uploads/products/${uploadedFiles[0].filename}` : null;
+    const mainImage = uploadedFiles.length > 0 ? uploadedFiles[0].path : null;
 
     res.status(201).json({
       message: 'Product created successfully',
@@ -103,13 +88,6 @@ exports.createProduct = async (req, res) => {
     });
   } catch (err) {
     await t.rollback();
-
-    if (uploadedFiles.length > 0) {
-      uploadedFiles.forEach((f) => {
-        const p = path.join(__dirname, '../../public/uploads/products', f.filename);
-        if (fs.existsSync(p)) fs.unlinkSync(p);
-      });
-    }
 
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -133,37 +111,10 @@ exports.updateProduct = async (req, res) => {
     const product = await Product.findByPk(productId);
     if (!product) {
       await t.rollback();
-      if (uploadedFiles.length > 0) {
-        uploadedFiles.forEach((f) => {
-          const p = path.join(__dirname, '../../public/uploads/products', f.filename);
-          if (fs.existsSync(p)) fs.unlinkSync(p);
-        });
-      }
       return res.status(404).json({ message: 'Product not found' });
     }
 
     if (imagesToDeleteIds.length > 0) {
-      const imagesToDelete = await ProductImage.findAll({
-        where: {
-          product_image_id: imagesToDeleteIds,
-          product_id: productId,
-        },
-        transaction: t,
-      });
-
-      // 2. Hapus file fisik
-      imagesToDelete.forEach((img) => {
-        const filePath = path.join(__dirname, '../../public', img.image_url);
-        if (fs.existsSync(filePath)) {
-          try {
-            fs.unlinkSync(filePath);
-          } catch (err) {
-            console.error(`Gagal menghapus file: ${filePath}`, err);
-          }
-        }
-      });
-
-      // 3. Hapus record dari Database
       await ProductImage.destroy({
         where: {
           product_image_id: imagesToDeleteIds,
@@ -219,7 +170,7 @@ exports.updateProduct = async (req, res) => {
     if (uploadedFiles.length > 0) {
       const imageData = uploadedFiles.map((file) => ({
         product_id: productId,
-        image_url: `/uploads/products/${file.filename}`,
+        image_url: file.path,
       }));
       await ProductImage.bulkCreate(imageData, { transaction: t });
     }
@@ -233,12 +184,6 @@ exports.updateProduct = async (req, res) => {
     res.json({ message: 'Product updated successfully' });
   } catch (err) {
     await t.rollback();
-    if (uploadedFiles.length > 0) {
-      uploadedFiles.forEach((f) => {
-        const p = path.join(__dirname, '../../public/uploads/products', f.filename);
-        if (fs.existsSync(p)) fs.unlinkSync(p);
-      });
-    }
     console.error(err);
     res.status(500).json({ error: err.message });
   }
@@ -257,10 +202,6 @@ exports.deleteProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    const imagesToDelete = await ProductImage.findAll({
-      where: { product_id: productId },
-    });
-
     await ProductMaterial.destroy({ where: { product_id: productId }, transaction: t });
     await ProductColor.destroy({ where: { product_id: productId }, transaction: t });
     await ProductImage.destroy({ where: { product_id: productId }, transaction: t });
@@ -269,10 +210,6 @@ exports.deleteProduct = async (req, res) => {
     await deleteProductTextFeature(productId, t);
     await generateTfidf(t);
     await t.commit();
-
-    if (imagesToDelete.length > 0) {
-      deletePhysicalFiles(imagesToDelete);
-    }
 
     res.json({ message: 'Product and all related data deleted successfully' });
   } catch (err) {

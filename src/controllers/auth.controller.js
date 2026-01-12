@@ -1,10 +1,8 @@
 const { secret, expiresIn } = require('../config/jwt');
 const { User } = require('../models');
-const googleClient = require('../config/google');
+// const googleClient = require('../config/google');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const fs = require('fs');
-const path = require('path');
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -100,14 +98,7 @@ exports.updateProfile = async (req, res) => {
     if (username) user.username = username;
     if (phone) user.phone = phone;
     if (req.file) {
-      if (user.profile_pic) {
-        const oldFileName = user.profile_pic.split('/').pop();
-        const oldPath = path.join(__dirname, '../../public/uploads/avatar', oldFileName);
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
-        }
-      }
-      user.profile_pic = `/uploads/avatar/${req.file.filename}`;
+      user.profile_pic = req.file.path;
     }
     await user.save();
 

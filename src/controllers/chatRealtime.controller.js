@@ -71,7 +71,7 @@ exports.getAdminChatRoom = async (req, res) => {
 
 exports.uploadChatImage = (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-  const imageUrl = `/uploads/chat/${req.file.filename}`;
+  const imageUrl = req.file.path;
   res.json({ url: imageUrl });
 };
 

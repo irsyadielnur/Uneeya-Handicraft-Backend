@@ -1,14 +1,12 @@
 const { SalesReport, Order, OrderItem, Product, ProductColor, ProductImage, Payment, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
-const fs = require('fs');
-const path = require('path');
 
-// Generate Preview (Hitung Omzet sebelum disimpan)
+// Hitung Omzet
 exports.getReportPreview = async (req, res) => {
   const { start_date, end_date } = req.query;
 
   try {
-    // A. Ambil Order Selesai beserta Item-nya
+    // Ambil Order Selesai
     const orders = await Order.findAll({
       where: {
         status: 'completed',
@@ -19,7 +17,7 @@ exports.getReportPreview = async (req, res) => {
       include: [
         {
           model: OrderItem,
-          include: [{ model: Product, attributes: ['name'] }], // Ambil nama produk
+          include: [{ model: Product, attributes: ['name'] }],
         },
       ],
     });
@@ -27,7 +25,7 @@ exports.getReportPreview = async (req, res) => {
     const totalSales = orders.reduce((sum, order) => sum + parseInt(order.grand_total), 0);
     const totalTransactions = orders.length;
 
-    // B. Hitung Penjualan Per Produk (Grouping)
+    // Hitung Penjualan Per Produk
     const productStats = {};
     orders.forEach((order) => {
       order.OrderItems.forEach((item) => {
@@ -44,13 +42,12 @@ exports.getReportPreview = async (req, res) => {
         productStats[pId].total += parseInt(item.price) * item.qty;
       });
     });
-    // Ubah ke Array & Sortir berdasarkan Qty terbanyak (Best Seller)
     const productsSummary = Object.values(productStats).sort((a, b) => b.qty - a.qty);
 
-    // C. Hitung Total Customer Terdaftar (Sampai tanggal akhir laporan)
+    // Hitung Total Customer Terdaftar
     const totalCustomers = await User.count({
       where: {
-        role_id: 1, // Customer Role
+        role_id: 1,
         created_at: { [Op.lte]: `${end_date} 23:59:59` },
       },
     });
@@ -60,8 +57,8 @@ exports.getReportPreview = async (req, res) => {
       end_date,
       total_sales: totalSales,
       total_transactions: totalTransactions,
-      total_customers: totalCustomers, // <-- Data Baru
-      products_summary: productsSummary, // <-- Data Baru
+      total_customers: totalCustomers,
+      products_summary: productsSummary,
     });
   } catch (error) {
     console.error(error);
@@ -71,16 +68,14 @@ exports.getReportPreview = async (req, res) => {
 
 // Buat Laporan Baru (Sales Admin)
 exports.createReport = async (req, res) => {
-  // Tambahkan total_customers & products_summary ke body request
   const { start_date, end_date, total_sales, total_transactions, total_customers, products_summary, notes } = req.body;
   const created_by = req.user.user_id;
-  const proofFile = req.file ? `/uploads/reports/${req.file.filename}` : null;
+  const proofFile = req.file ? req.file.path : null;
 
   try {
     const date = new Date();
     const repNum = `REP/${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}/${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // Parse JSON string jika dikirim sebagai string dari FormData
     let parsedProducts = products_summary;
     if (typeof products_summary === 'string') {
       try {
@@ -94,8 +89,8 @@ exports.createReport = async (req, res) => {
       end_date,
       total_sales,
       total_transactions,
-      total_customers, // <-- Simpan
-      products_summary: parsedProducts, // <-- Simpan JSON
+      total_customers,
+      products_summary: parsedProducts,
       proof_image: proofFile,
       notes,
       created_by,
@@ -144,21 +139,14 @@ exports.getReportById = async (req, res) => {
 exports.updateReport = async (req, res) => {
   const { report_id } = req.params;
   const { notes } = req.body;
-  const newProofFile = req.file ? `/uploads/reports/${req.file.filename}` : null;
+  const newProofFile = req.file ? req.file.path : null;
 
   try {
     const report = await SalesReport.findByPk(report_id);
     if (!report) return res.status(404).json({ message: 'Laporan tidak ditemukan' });
-
-    // Update Notes
     if (notes !== undefined) report.notes = notes;
 
-    // Update Bukti (Hapus lama jika ada upload baru)
     if (newProofFile) {
-      if (report.proof_image) {
-        const oldPath = path.join(__dirname, '../../public', report.proof_image);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
       report.proof_image = newProofFile;
     }
 
@@ -178,15 +166,8 @@ exports.deleteReport = async (req, res) => {
     const report = await SalesReport.findByPk(report_id);
     if (!report) return res.status(404).json({ message: 'Laporan tidak ditemukan' });
 
-    // Opsional: Cegah hapus jika sudah Approved
     if (report.status === 'approved') {
       return res.status(403).json({ message: 'Laporan yang sudah divalidasi tidak dapat dihapus.' });
-    }
-
-    // Hapus File Bukti
-    if (report.proof_image) {
-      const filePath = path.join(__dirname, '../../public', report.proof_image);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
 
     await report.destroy();
@@ -200,7 +181,7 @@ exports.deleteReport = async (req, res) => {
 // 4. Validasi Laporan (Owner Only)
 exports.validateReport = async (req, res) => {
   const { report_id } = req.params;
-  const { status } = req.body; // 'approved' or 'rejected'
+  const { status } = req.body;
 
   try {
     const report = await SalesReport.findByPk(report_id);
@@ -247,7 +228,7 @@ exports.getDashboardStats = async (req, res) => {
 
     const outOfStockProducts = await ProductColor.findAll({
       where: {
-        stock: { [Op.lte]: 0 }, // Stok <= 0
+        stock: { [Op.lte]: 0 },
       },
       limit: 5,
       include: [
