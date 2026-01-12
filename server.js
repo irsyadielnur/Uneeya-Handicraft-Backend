@@ -102,7 +102,9 @@ io.on('connection', (socket) => {
 // Jalankan Server
 (async () => {
   try {
-    await db.sequelize.sync({ alter: true });
+    await db.sequelize.sync().then(() => {
+      console.log('Database synced');
+    });
 
     await seedRoles();
     await seedAdminUsers();
