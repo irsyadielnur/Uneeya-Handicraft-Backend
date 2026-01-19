@@ -1,4 +1,5 @@
 const { Order, OrderItem, Shipment, Address, Payment, Product, ProductImage, User, ShopSetting, sequelize } = require('../models');
+const { Op } = require('sequelize');
 const cartService = require('../services/cart.service');
 const rajaOngkirService = require('../services/rajaOngkir.service');
 
@@ -114,10 +115,9 @@ exports.getMyOrders = async (req, res) => {
   const { status, page = 1, limit = 10 } = req.query;
 
   const whereClause = { user_id };
-  // Handle filter status
   if (status && status !== 'all') whereClause.status = status;
 
-  const offset = (page - 1) * limit;
+  const offset = (Number(page) - 1) * Number(limit);
 
   try {
     const { count, rows } = await Order.findAndCountAll({
@@ -125,7 +125,6 @@ exports.getMyOrders = async (req, res) => {
       order: [['created_at', 'DESC']],
       limit: Number(limit),
       offset: Number(offset),
-      // Tambahkan 'address_snapshot' agar alamat muncul
       attributes: ['order_id', 'status', 'total_price', 'shipping_cost', 'grand_total', 'created_at', 'address_snapshot'],
       include: [
         {
@@ -153,14 +152,26 @@ exports.getMyOrders = async (req, res) => {
       distinct: true,
     });
 
+    const formattedOrders = rows.map((order) => {
+      const ord = order.toJSON();
+      if (typeof ord.address_snapshot === 'string') {
+        try {
+          ord.address_snapshot = JSON.parse(ord.address_snapshot);
+        } catch (e) {
+          console.error('Error parsing address snapshot', e);
+        }
+      }
+      return ord;
+    });
+
     res.json({
       total_data: count,
       total_page: Math.ceil(count / limit),
       current_page: Number(page),
-      orders: rows,
+      orders: formattedOrders,
     });
   } catch (error) {
-    console.error('Error GetMyOrders:', error); // Cek terminal jika masih error
+    console.error('Error GetMyOrders:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -265,15 +276,27 @@ exports.completeOrder = async (req, res) => {
 // Get All Orders (Admin)
 exports.getAllOrdersAdmin = async (req, res) => {
   try {
-    const { status } = req.query;
-    const whereClause = status && status !== 'all' ? { status } : {};
+    const { status, page = 1, limit = 10, search } = req.query;
+    const whereClause = {};
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
 
-    const orders = await Order.findAll({
+    if (search) {
+      whereClause[Op.or] = [{ order_id: { [Op.like]: `%${search}%` } }, { '$User.username$': { [Op.like]: `%${search}%` } }];
+    }
+
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const { count, rows } = await Order.findAndCountAll({
       where: whereClause,
+      limit: Number(limit),
+      offset: Number(offset),
+      subQuery: false,
       include: [
         {
           model: User,
-          attributes: ['username', 'email'],
+          attributes: ['username', 'email', 'profile_pic'],
         },
         {
           model: OrderItem,
@@ -300,9 +323,25 @@ exports.getAllOrdersAdmin = async (req, res) => {
         },
       ],
       order: [['created_at', 'DESC']],
+      distinct: true,
     });
 
-    res.json(orders);
+    const formattedOrders = rows.map((order) => {
+      const ord = order.toJSON();
+      if (typeof ord.address_snapshot === 'string') {
+        try {
+          ord.address_snapshot = JSON.parse(ord.address_snapshot);
+        } catch (e) {}
+      }
+      return ord;
+    });
+
+    res.json({
+      total_data: count,
+      total_page: Math.ceil(count / limit),
+      current_page: Number(page),
+      orders: formattedOrders,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
@@ -365,6 +404,72 @@ exports.updateOrderStatus = async (req, res) => {
     res.json({ message: 'Status pesanan dan data pengiriman berhasil diperbarui', order });
   } catch (error) {
     await t.rollback(); // Batalkan jika ada error
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Hapus Pesanan (Customer)
+exports.deleteMyOrder = async (req, res) => {
+  const user_id = req.user.user_id;
+  const { order_id } = req.params;
+  const t = await sequelize.transaction();
+
+  try {
+    const order = await Order.findOne({
+      where: { order_id, user_id },
+    });
+
+    if (!order) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+    }
+
+    const allowedStatuses = ['pending', 'cancelled'];
+    if (!allowedStatuses.includes(order.status)) {
+      await t.rollback();
+      return res.status(400).json({
+        message: 'Pesanan tidak dapat dihapus karena sudah diproses atau selesai. Hubungi admin untuk pembatalan.',
+      });
+    }
+
+    await OrderItem.destroy({ where: { order_id }, transaction: t });
+    await Shipment.destroy({ where: { order_id }, transaction: t });
+    await Payment.destroy({ where: { order_id }, transaction: t });
+
+    await order.destroy({ transaction: t });
+
+    await t.commit();
+    res.json({ message: 'Pesanan berhasil dihapus' });
+  } catch (error) {
+    await t.rollback();
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Hapus Pesanan (Admin)
+exports.deleteOrderAdmin = async (req, res) => {
+  const { order_id } = req.params;
+  const t = await sequelize.transaction();
+
+  try {
+    const order = await Order.findByPk(order_id);
+
+    if (!order) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+    }
+
+    await OrderItem.destroy({ where: { order_id }, transaction: t });
+    await Shipment.destroy({ where: { order_id }, transaction: t });
+    await Payment.destroy({ where: { order_id }, transaction: t });
+    await order.destroy({ transaction: t });
+
+    await t.commit();
+    res.json({ message: 'Data pesanan berhasil dihapus permanen oleh Admin' });
+  } catch (error) {
+    await t.rollback();
     console.error(error);
     res.status(500).json({ error: error.message });
   }
