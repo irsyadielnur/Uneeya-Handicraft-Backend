@@ -1,8 +1,23 @@
 const { secret, expiresIn } = require('../config/jwt');
 const { User } = require('../models');
-// const googleClient = require('../config/google');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
+const { Op } = require('sequelize');
+// const googleClient = require('../config/google');
+
+// Helper: Hapus gambar lokal lama
+const deleteLocalImage = (imageUrl) => {
+  if (!imageUrl) return;
+  const filePath = path.join(__dirname, '../../public', imageUrl);
+
+  if (fs.existsSync(filePath)) {
+    fs.unlink(filePath, (err) => {
+      if (err) console.error(`Gagal menghapus file lama: ${filePath}`, err);
+    });
+  }
+};
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -94,13 +109,20 @@ exports.updateProfile = async (req, res) => {
 
   try {
     const user = await User.findByPk(user_id);
-    if (!user) return res.status(404).json({ message: 'User tidak ditemukan' });
+    if (!user) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
     if (username) user.username = username;
     if (phone) user.phone = phone;
 
     if (req.file) {
-      user.profile_pic = req.file.path;
+      if (user.profile_pic) {
+        deleteLocalImage(user.profile_pic);
+      }
+      user.profile_pic = `/uploads/avatars/${req.file.filename}`;
     }
+
     await user.save();
 
     const updatedUser = {
@@ -119,6 +141,7 @@ exports.updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Error update profile:', error);
+    if (req.file) fs.unlink(req.file.path, () => {});
     res.status(500).json({ error: error.message });
   }
 };
@@ -148,7 +171,16 @@ exports.changePassword = async (req, res) => {
 exports.deleteAccount = async (req, res) => {
   const user_id = req.user.user_id;
   try {
-    await User.destroy({ where: { user_id } });
+    const user = await User.findByPk(user_id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
+
+    if (user.profile_pic) {
+      deleteLocalImage(user.profile_pic);
+    }
+    await user.destroy();
     res.json({ message: 'Akun berhasil dihapus permanen' });
   } catch (error) {
     res.status(500).json({ error: error.message });

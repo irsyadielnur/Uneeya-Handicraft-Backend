@@ -2,6 +2,8 @@ const { Product, ProductMaterial, ProductColor, ProductImage, sequelize } = requ
 const { generateProductTextFeature, deleteProductTextFeature } = require('../services/productTextFeature.service');
 const { generateTfidf } = require('../services/tfidf.service');
 const { getSimilarProductsByID } = require('../services/recommendation.service');
+const path = require('path');
+const fs = require('fs');
 
 // Helper: Parse data
 const parseBodyData = (data) => {
@@ -13,6 +15,18 @@ const parseBodyData = (data) => {
     }
   }
   return data;
+};
+
+// Helper: Hapus file fisik dari server
+const deleteLocalImage = (imageUrl) => {
+  if (!imageUrl) return;
+  const filePath = path.join(__dirname, '../../public', imageUrl);
+
+  if (fs.existsSync(filePath)) {
+    fs.unlink(filePath, (err) => {
+      if (err) console.error(`Gagal menghapus file: ${filePath}`, err);
+    });
+  }
 };
 
 // Create Product
@@ -66,7 +80,7 @@ exports.createProduct = async (req, res) => {
     if (uploadedFiles.length > 0) {
       const imageData = uploadedFiles.map((file) => ({
         product_id: product.product_id,
-        image_url: file.path,
+        image_url: `/uploads/products/${file.filename}`,
       }));
       await ProductImage.bulkCreate(imageData, { transaction: t });
     }
@@ -76,7 +90,7 @@ exports.createProduct = async (req, res) => {
 
     await t.commit();
 
-    const mainImage = uploadedFiles.length > 0 ? uploadedFiles[0].path : null;
+    const mainImage = uploadedFiles.length > 0 ? `/uploads/products/${uploadedFiles[0].filename}` : null;
 
     res.status(201).json({
       message: 'Product created successfully',
@@ -86,6 +100,15 @@ exports.createProduct = async (req, res) => {
     });
   } catch (err) {
     await t.rollback();
+
+    // Cleanup: Hapus file yang baru saja diupload jika transaksi gagal
+    if (uploadedFiles.length > 0) {
+      uploadedFiles.forEach((file) => {
+        fs.unlink(file.path, (e) => {
+          if (e) console.error(e);
+        });
+      });
+    }
 
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -109,10 +132,24 @@ exports.updateProduct = async (req, res) => {
     const product = await Product.findByPk(productId);
     if (!product) {
       await t.rollback();
+      // Cleanup file upload jika produk tidak ditemukan
+      uploadedFiles.forEach((file) => fs.unlink(file.path, () => {}));
       return res.status(404).json({ message: 'Product not found' });
     }
 
     if (imagesToDeleteIds.length > 0) {
+      const imagesToDelete = await ProductImage.findAll({
+        where: {
+          product_image_id: imagesToDeleteIds,
+          product_id: productId,
+        },
+        transaction: t,
+      });
+
+      imagesToDelete.forEach((img) => {
+        deleteLocalImage(img.image_url);
+      });
+
       await ProductImage.destroy({
         where: {
           product_image_id: imagesToDeleteIds,
@@ -168,7 +205,7 @@ exports.updateProduct = async (req, res) => {
     if (uploadedFiles.length > 0) {
       const imageData = uploadedFiles.map((file) => ({
         product_id: productId,
-        image_url: file.path,
+        image_url: `/uploads/products/${file.filename}`,
       }));
       await ProductImage.bulkCreate(imageData, { transaction: t });
     }
@@ -182,6 +219,10 @@ exports.updateProduct = async (req, res) => {
     res.json({ message: 'Product updated successfully' });
   } catch (err) {
     await t.rollback();
+
+    // Cleanup file baru jika gagal update
+    uploadedFiles.forEach((file) => fs.unlink(file.path, () => {}));
+
     console.error(err);
     res.status(500).json({ error: err.message });
   }
@@ -199,6 +240,16 @@ exports.deleteProduct = async (req, res) => {
       await t.rollback();
       return res.status(404).json({ message: 'Product not found' });
     }
+
+    const productImages = await ProductImage.findAll({
+      where: { product_id: productId },
+      transaction: t,
+    });
+
+    // Hapus file fisik
+    productImages.forEach((img) => {
+      deleteLocalImage(img.image_url);
+    });
 
     await ProductMaterial.destroy({ where: { product_id: productId }, transaction: t });
     await ProductColor.destroy({ where: { product_id: productId }, transaction: t });

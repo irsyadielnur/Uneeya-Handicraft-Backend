@@ -1,4 +1,17 @@
 const { ChatRoom, RealtimeMessage, User } = require('../models');
+const path = require('path');
+const fs = require('fs');
+
+// Helper: Hapus file fisik
+const deleteLocalImage = (imageUrl) => {
+  if (!imageUrl) return;
+  const filePath = path.join(__dirname, '../../public', imageUrl);
+  if (fs.existsSync(filePath)) {
+    fs.unlink(filePath, (err) => {
+      if (err) console.error(`Gagal menghapus file: ${filePath}`, err);
+    });
+  }
+};
 
 exports.getMyChatRoom = async (req, res) => {
   try {
@@ -71,7 +84,7 @@ exports.getAdminChatRoom = async (req, res) => {
 
 exports.uploadChatImage = (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-  const imageUrl = req.file.path;
+  const imageUrl = `/uploads/chat/${req.file.filename}`;
   res.json({ url: imageUrl });
 };
 
@@ -82,6 +95,10 @@ exports.deleteSingleMessage = async (req, res) => {
     const message = await RealtimeMessage.findByPk(messageId);
     if (!message) {
       return res.status(404).json({ message: 'Pesan tidak ditemukan' });
+    }
+
+    if (message.type === 'image') {
+      deleteLocalImage(message.message);
     }
 
     const roomId = message.room_id;
@@ -126,6 +143,14 @@ exports.deleteSingleMessage = async (req, res) => {
 exports.clearChatRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
+    const imageMessages = await RealtimeMessage.findAll({
+      where: { room_id: roomId, type: 'image' },
+    });
+
+    imageMessages.forEach((msg) => {
+      deleteLocalImage(msg.message);
+    });
+
     await RealtimeMessage.destroy({
       where: { room_id: roomId },
     });

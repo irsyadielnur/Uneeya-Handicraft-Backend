@@ -1,12 +1,24 @@
 const { SalesReport, Order, OrderItem, Product, ProductColor, ProductImage, Payment, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const path = require('path');
+const fs = require('fs');
+
+// Helper: Hapus file fisik
+const deleteLocalImage = (imageUrl) => {
+  if (!imageUrl) return;
+  const filePath = path.join(__dirname, '../../public', imageUrl);
+  if (fs.existsSync(filePath)) {
+    fs.unlink(filePath, (err) => {
+      if (err) console.error(`Gagal menghapus file: ${filePath}`, err);
+    });
+  }
+};
 
 // Hitung Omzet
 exports.getReportPreview = async (req, res) => {
   const { start_date, end_date } = req.query;
 
   try {
-    // Ambil Order Selesai
     const orders = await Order.findAll({
       where: {
         status: 'completed',
@@ -70,7 +82,7 @@ exports.getReportPreview = async (req, res) => {
 exports.createReport = async (req, res) => {
   const { start_date, end_date, total_sales, total_transactions, total_customers, products_summary, notes } = req.body;
   const created_by = req.user.user_id;
-  const proofFile = req.file ? req.file.path : null;
+  const proofFile = req.file ? `/uploads/reports/${req.file.filename}` : null;
 
   try {
     const date = new Date();
@@ -100,6 +112,10 @@ exports.createReport = async (req, res) => {
     res.status(201).json({ message: 'Laporan berhasil dibuat', report });
   } catch (error) {
     console.error(error);
+
+    // Cleanup file jika error DB
+    if (req.file) fs.unlink(req.file.path, () => {});
+
     res.status(500).json({ error: error.message });
   }
 };
@@ -139,14 +155,20 @@ exports.getReportById = async (req, res) => {
 exports.updateReport = async (req, res) => {
   const { report_id } = req.params;
   const { notes } = req.body;
-  const newProofFile = req.file ? req.file.path : null;
+  const newProofFile = req.file ? `/uploads/reports/${req.file.filename}` : null;
 
   try {
     const report = await SalesReport.findByPk(report_id);
-    if (!report) return res.status(404).json({ message: 'Laporan tidak ditemukan' });
+    if (!report) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ message: 'Laporan tidak ditemukan' });
+    }
     if (notes !== undefined) report.notes = notes;
 
     if (newProofFile) {
+      if (report.proof_image) {
+        deleteLocalImage(report.proof_image);
+      }
       report.proof_image = newProofFile;
     }
 
@@ -154,6 +176,7 @@ exports.updateReport = async (req, res) => {
     res.json({ message: 'Laporan berhasil diperbarui', report });
   } catch (error) {
     console.error(error);
+    if (req.file) fs.unlink(req.file.path, () => {});
     res.status(500).json({ error: error.message });
   }
 };
@@ -168,6 +191,10 @@ exports.deleteReport = async (req, res) => {
 
     if (report.status === 'approved') {
       return res.status(403).json({ message: 'Laporan yang sudah divalidasi tidak dapat dihapus.' });
+    }
+
+    if (report.proof_image) {
+      deleteLocalImage(report.proof_image);
     }
 
     await report.destroy();

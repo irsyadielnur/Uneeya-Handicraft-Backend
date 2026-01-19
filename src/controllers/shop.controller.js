@@ -1,4 +1,17 @@
 const { ShopSetting } = require('../models');
+const path = require('path');
+const fs = require('fs');
+
+// Helper: Hapus file fisik
+const deleteLocalImage = (imageUrl) => {
+  if (!imageUrl) return;
+  const filePath = path.join(__dirname, '../../public', imageUrl);
+  if (fs.existsSync(filePath)) {
+    fs.unlink(filePath, (err) => {
+      if (err) console.error(`Gagal menghapus file: ${filePath}`, err);
+    });
+  }
+};
 
 // Get Shop Info
 exports.getShopInfo = async (req, res) => {
@@ -43,13 +56,22 @@ exports.updateShopInfo = async (req, res) => {
     };
 
     if (req.file) {
-      updateData.logo_url = req.file.path;
+      if (shop.logo_url) {
+        deleteLocalImage(shop.logo_url);
+      }
+      updateData.logo_url = `/uploads/shop/${req.file.filename}`;
     }
 
     await shop.update(updateData);
     res.json({ message: 'Informasi toko berhasil diperbarui', shop });
   } catch (error) {
     console.error('Error di updateShopInfo:', error);
+
+    // Cleanup jika gagal
+    if (req.file) {
+      fs.unlink(req.file.path, () => {});
+    }
+
     res.status(500).json({ error: error.message });
   }
 };
